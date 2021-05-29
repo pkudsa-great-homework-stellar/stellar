@@ -3,6 +3,9 @@ from GameMap import GameMap
 import config
 
 
+# 问题：不会集兵，不会集体进攻。。。被打爆了
+# 运行一段时间就会死于所有点都是100，然后被打爆
+
 def countScores(nodes: list, N: int) -> list:
     '''
     计算各点重要度权重：1/distance1+1/distance2
