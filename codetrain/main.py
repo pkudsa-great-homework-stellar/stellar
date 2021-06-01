@@ -7,7 +7,7 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.font_manager import FontProperties
-from multiprocessing import Process, Queue
+from multiprocessing import Process, Array, Pool, Lock
 os.chdir(os.path.dirname(__file__))
 
 
@@ -24,10 +24,10 @@ if '初始配置':
     from paras import PRINT_SCORES, SCORES_FILE
     from paras import ANALYZE_SCORES, PRE_ANALYZE
     # 预分析参量：
-    PRE_ANALYZE_N = 15
+    PRE_ANALYZE_N = 5
 
 
-def match(modules, names, results):
+def match(modules: list, names: list, results: list) -> None:
     for x in range(K):
         game = GameWithModule(modules, names, {})
         game.run()
@@ -35,6 +35,7 @@ def match(modules, names, results):
         if winner not in (0, 1):
             continue  # 平局跳过
         results[winner][0] += 1
+        results[1-winner][0] -= 1
         history = game.map['history']
         if len(history) != 100:
             results[1-winner][1] -= 200-len(history)
@@ -85,7 +86,7 @@ class code():
 
         return pack
 
-    def run(self, other):
+    def run(self, other) -> list:
         assert isinstance(other, code)
         results = [[0, 0], [0, 0]]
         modules = [self.create_file(), other.create_file()]
@@ -104,8 +105,10 @@ class fightsquare():
     def __init__(self, n: int) -> None:
         self.fighters = []
         self.n = n
+        self.all_fight_num = (self.n**2-self.n)//2
         self.max_index = None
-        self.__scores = None
+        self.__win_nums = None
+        self.__winscores = None
 
     def appendfighter(self, fighter: code):
         assert isinstance(fighter, code)
@@ -113,51 +116,83 @@ class fightsquare():
 
     def beginfight(self):
         assert len(self.fighters) == self.n
-        scores = []  # scores is a list of score:list=[胜利局数，胜利分]
-        for x in range(self.n):
-            scores.append([0, 0])
+        win_nums = Array('l', self.n)
+        winscores = Array('d', self.n)
         fight_num = 1
-        all_fight_num = (self.n**2-self.n)//2
+        pool = Pool()
         start_time = time.time()
+        lock = Lock()
         for x in range(1, self.n):
             for y in range(x):
-                results = self.fighters[x].run(self.fighters[y])
-                scores[x] = list(map(lambda x, y: x+y, scores[x], results[0]))
-                scores[y] = list(map(lambda x, y: x+y, scores[y], results[1]))
-                now_time = time.time()
-                time_used = now_time-start_time
-                time_still_needed = (time_used / fight_num) * \
-                    (all_fight_num-fight_num)
-                msg = f"=======================PART {fight_num}========================\n"
-                msg += f'\t\tfights finished:{fight_num}/{all_fight_num}\n'
-                msg += f"time used:{time_used:.3f}s\ttime still needed:{time_still_needed:.3f}s"
-                print(msg)
+                pool.apply_async(self.fight, args=(
+                    win_nums, winscores, start_time, x, y, fight_num, lock))
+                # self.fight(win_nums, winscores, start_time,
+                #            x, y, fight_num, queue)
                 fight_num += 1
-        max_value = scores[0]
+        pool.close()
+        pool.join()
+        win_nums = list(win_nums)
+        winscores = list(winscores)
+        max_win_num = win_nums[0]
+        max_winscore = winscores[0]
         max_index = 0
         for x in range(1, self.n):
             if WINNER_IS_KING:
-                if scores[x][0] > max_value[0] or (scores[x][0] == max_value[0] and scores[x][1] > max_value[1]):
-                    max_value = scores[x]
+                if win_nums[x] > max_win_num or (win_nums[x] == max_win_num and winscores[x] > max_winscore):
+                    max_win_num = win_nums[x]
+                    max_winscore = winscores[x]
                     max_index = x
             else:
-                if scores[x][1] > max_value[1] or (scores[x][1] == max_value[1] and scores[x][0] > max_value[0]):
-                    max_value = scores[x]
+                if winscores[x] > max_winscore or (winscores[x] == max_winscore and win_nums[x] > max_win_num):
+                    max_win_num = win_nums[x]
+                    max_winscore = winscores[x]
                     max_index = x
         self.max_index = max_index
-        self.__scores = scores
+        self.__win_nums = win_nums
+        self.__winscores = winscores
+
+    def fight(self, win_nums: Array, winscores: Array, start_time: float, x: int, y: int, fight_num: int, lock: Lock) -> None:
+        p_start_time = time.time()
+        results = self.fighters[x].run(self.fighters[y])
+        lock.acquire()
+        win_nums[x] += results[0][0]
+        win_nums[y] += results[1][0]
+        winscores[x] += results[0][1]
+        winscores[y] += results[1][1]
+        lock.release()
+        now_time = time.time()
+        time_used = now_time-start_time
+        time_still_needed = (time_used / fight_num) * \
+            (self.all_fight_num-fight_num)
+        p_used_time = now_time-p_start_time
+        msg = f"=======================PART {fight_num} ends========================\n"
+        msg += f'\t\tfights finished:{fight_num}/{self.all_fight_num}\n'
+        msg += f"time used:{time_used:.3f}s\ttime still needed:{time_still_needed:.3f}s"
+        msg += f"pid:{os.getpid()}\tprogram used{p_used_time:.3f}"
+        print(msg)
 
     def winner(self) -> code:
         assert self.max_index is not None
         return self.fighters[self.max_index]
 
     @property
+    def winscores(self):
+        assert isinstance(self.__winscores, list)
+        return self.__winscores
+
+    @property
+    def win_nums(self):
+        assert isinstance(self.__win_nums, list)
+        return self.__win_nums
+
+    @property
     def scores(self):
-        assert isinstance(self.__scores, list)
-        return self.__scores
+        assert isinstance(self.__winscores, list)
+        assert isinstance(self.__win_nums, list)
+        return {'win_nums': self.__win_nums, 'winscores': self.__winscores}
 
 
-def makeHistogram(name: str, data: list):
+def makeHistogram(name: str, data: list) -> None:
     n, bins, patches = plt.hist(
         x=data, bins='auto', color='#0504aa', alpha=0.7, rwidth=0.85)
     plt.grid(axis='y', alpha=0.75)
@@ -183,14 +218,14 @@ if __name__ == '__main__':
         for x in range(PRE_ANALYZE_N-1):
             field_pre.appendfighter(code0.copy_file())
         field_pre.beginfight()
-        scores = field_pre.scores
-        win_num = [x[0] for x in scores]
-        winscores = [x[1] for x in scores]
-        makeHistogram('win_num', win_num)
+        win_nums = field_pre.win_nums
+        winscores = field_pre.winscores
+        makeHistogram('win_num', win_nums)
         makeHistogram('winscores', winscores)
         winner_code = field_pre.winner()
         values = field_pre.winner().return_values()
-        msg = input("\nresult:"+json.dumps(values)+"\ninput 'q' for quit\n")
+        msg = input("\nresult:"+json.dumps(values) +
+                    "\ninput 'q' for quit; anything else for continue\n")
         if msg == 'q':
             fight = False
 
@@ -216,8 +251,7 @@ if __name__ == '__main__':
                 json.dump(field.scores, f, ensure_ascii=0)
                 # 输出对决结果
         if ANALYZE_SCORES:
-            scores = field.scores
-            win_num = [x[0] for x in scores]
-            winscores = [x[1] for x in scores]
-            makeHistogram('win_num', win_num)
+            win_nums = field.win_nums
+            winscores = field.winscores
+            makeHistogram('win_num', win_nums)
             makeHistogram('winscores', winscores)

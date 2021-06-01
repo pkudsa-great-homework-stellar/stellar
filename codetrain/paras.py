@@ -17,7 +17,7 @@ PARAMETERS = {
 
 N = 15
 # 对战规模：N**len(parameters)
-K = 3
+K = 2
 # 每次对决进行2*k次
 WINNER_IS_KING = True
 # 战胜场数为对比主要方式,为False的话会只比较胜利分
