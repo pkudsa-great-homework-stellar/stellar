@@ -1,11 +1,15 @@
-import os, sys, ast, traceback, json
+import os
+import sys
+import ast
+import traceback
+import json
 from tkinter import filedialog
 from copy import deepcopy
 
 # 更改根目录
 os.chdir(os.path.dirname(__file__))
 
-### ========= 配置区域 =========
+# ========= 配置区域 =========
 # 源代码路径，若更改本文件与src目录相对位置需更改该参数
 SRC_PATH = '../src/'
 # 玩家代码1文件位置，默认留空时将从命令行参数1或input读取；重写则固定为该文件
@@ -16,7 +20,7 @@ PLAYER2_PATH = ''
 OUTPUT_DIR = './output.json'
 # 是否用tkinter dialog选择文件
 USE_DIALOG = (os.sys.platform == 'win32')
-### ========= 配置结束 =========
+# ========= 配置结束 =========
 
 if '初始配置':
     sys.path.append(os.path.abspath(SRC_PATH))  # 链接src目录
