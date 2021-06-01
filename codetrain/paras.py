@@ -15,11 +15,11 @@ PARAMETERS = {
 
 # 对战设置
 
-N = 10
+N = 15
 # 对战规模：N**len(parameters)
 K = 3
 # 每次对决进行2*k次
-PROGRAM_LINES = None
+PROCESS_LIMITS = None
 # 并行进程数。。。改一种方式，用多个进程跑同样的main代码，然后再进一步考察,None代表取为电脑核数
 WINNER_IS_KING = True
 # 战胜场数为对比主要方式,为False的话会只比较胜利分
@@ -27,6 +27,8 @@ WINNER_IS_KING = True
 
 # 输出设置
 
+PRINT_EVERY_RESULTS = False
+# 输出每一个进程的结果
 PRINT_SCORES = False
 # 输出分数
 SCORES_FILE = 'scores.json'
@@ -35,7 +37,7 @@ SCORES_FILE = 'scores.json'
 
 # 分析设置
 
-ANALYZE_SCORES = True
-# 分析结果，并给出分布图
+ANALYZE_SCORES = False
+# 分析结果，并给出分布图（每个线程的）
 PRE_ANALYZE = True
 # 预分析：在给定区域内取15组值进行计算，给出分析结果(大约6分钟)
