@@ -1,6 +1,6 @@
 # 填写文件名
 # 请将文件放在pkudsa.stellar.codetrain文件夹里
-FILENAME = 'tqy_5.2.py'
+FILENAME = 'tqy_5.2.py'  # ！！！改文件名！！！
 CONTRAST_WITH_SELF = True  # 如果和自己比较，则为true 现在也没写False的情况。。。
 CONTRAST_FILE = ''  # 如果上一行为true 则不用填写
 OUTPUT_FILE = 'output.json'
