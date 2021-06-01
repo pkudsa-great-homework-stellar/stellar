@@ -4,7 +4,10 @@ import random
 import ast
 import json
 import time
-from multiprocessing import Process
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.font_manager import FontProperties
+from multiprocessing import Process, Queue
 os.chdir(os.path.dirname(__file__))
 
 
@@ -15,16 +18,22 @@ sys.path.append(os.path.abspath(BEDUGGER_PATH))
 
 if '初始配置':
     from debuggerCmd import GameWithModule
-    from paras import k, parameters, filename, contrast_with_self, N, OUTPUT_File
+    from paras import FILENAME, CONTRAST_WITH_SELF, CONTRAST_FILE, OUTPUT_FILE
+    from paras import PARAMETERS
+    from paras import N, K, WINNER_IS_KING
+    from paras import PRINT_SCORES, SCORES_FILE
+    from paras import ANALYZE_SCORES, PRE_ANALYZE
+    # 预分析参量：
+    PRE_ANALYZE_N = 15
 
 
 def match(modules, names, results):
-    for x in range(k):
+    for x in range(K):
         game = GameWithModule(modules, names, {})
         game.run()
         winner = game.map['winner']
         if winner not in (0, 1):
-            continue
+            continue  # 平局跳过
         results[winner][0] += 1
         history = game.map['history']
         if len(history) != 100:
@@ -96,6 +105,7 @@ class fightsquare():
         self.fighters = []
         self.n = n
         self.max_index = None
+        self.__scores = None
 
     def appendfighter(self, fighter: code):
         assert isinstance(fighter, code)
@@ -103,7 +113,7 @@ class fightsquare():
 
     def beginfight(self):
         assert len(self.fighters) == self.n
-        scores = []
+        scores = []  # scores is a list of score:list=[胜利局数，胜利分]
         for x in range(self.n):
             scores.append([0, 0])
         fight_num = 1
@@ -116,38 +126,98 @@ class fightsquare():
                 scores[y] = list(map(lambda x, y: x+y, scores[y], results[1]))
                 now_time = time.time()
                 time_used = now_time-start_time
-                time_still_need = time_used / \
-                    (fight_num/(all_fight_num-fight_num))
+                time_still_needed = (time_used / fight_num) * \
+                    (all_fight_num-fight_num)
                 msg = f"=======================PART {fight_num}========================\n"
-                msg += f'\tfights_finished:{fight_num}/{all_fight_num}\n'
-                msg += f"time_used:{time_used:.3f}s\ttime_still_need:{time_still_need:.3f}s"
+                msg += f'\t\tfights finished:{fight_num}/{all_fight_num}\n'
+                msg += f"time used:{time_used:.3f}s\ttime still needed:{time_still_needed:.3f}s"
                 print(msg)
                 fight_num += 1
         max_value = scores[0]
         max_index = 0
         for x in range(1, self.n):
-            if scores[x][0] > max_value[0] or (scores[x][0] == max_value[0] and scores[x][1] > max_value[1]):
-                max_value = scores[x]
-                max_index = x
+            if WINNER_IS_KING:
+                if scores[x][0] > max_value[0] or (scores[x][0] == max_value[0] and scores[x][1] > max_value[1]):
+                    max_value = scores[x]
+                    max_index = x
+            else:
+                if scores[x][1] > max_value[1] or (scores[x][1] == max_value[1] and scores[x][0] > max_value[0]):
+                    max_value = scores[x]
+                    max_index = x
         self.max_index = max_index
+        self.__scores = scores
 
     def winner(self) -> code:
         assert self.max_index is not None
         return self.fighters[self.max_index]
 
+    @property
+    def scores(self):
+        assert isinstance(self.__scores, list)
+        return self.__scores
+
+
+def makeHistogram(name: str, data: list):
+    n, bins, patches = plt.hist(
+        x=data, bins='auto', color='#0504aa', alpha=0.7, rwidth=0.85)
+    plt.grid(axis='y', alpha=0.75)
+    plt.xlabel(name)
+    plt.ylabel('Frequency')
+    plt.title(name+"-Frequency Histogram")
+    maxfreq = n.max()
+    plt.ylim(ymax=np.ceil(maxfreq / 10) * 10 if maxfreq % 10 else maxfreq + 10)
+    plt.show()
+
 
 if __name__ == '__main__':
-    l = len(parameters)
-    field = fightsquare(N**l)
     basepath = os.path.dirname(__file__)
-    path = os.path.join(basepath, filename)
-    # print(path)
-    code0 = code(filename, parameters, path)
-    field.appendfighter(code0)
-    for x in range(N**l-1):
-        field.appendfighter(code0.copy_file())
-    field.beginfight()
-    winner_code = field.winner()
-    output_path = os.path.join(basepath, OUTPUT_File)
-    with open(output_path, 'w', encoding='utf-8') as f:
-        json.dump(winner_code.return_values(), f, ensure_ascii=0)
+    path = os.path.join(basepath, FILENAME)
+    code0 = code(FILENAME, PARAMETERS, path)
+
+    # 预分析
+    fight = True
+    if PRE_ANALYZE:
+        print("\nNOW begins the PRE-ANALYZE:\n")
+        field_pre = fightsquare(PRE_ANALYZE_N)
+        field_pre.appendfighter(code0)
+        for x in range(PRE_ANALYZE_N-1):
+            field_pre.appendfighter(code0.copy_file())
+        field_pre.beginfight()
+        scores = field_pre.scores
+        win_num = [x[0] for x in scores]
+        winscores = [x[1] for x in scores]
+        makeHistogram('win_num', win_num)
+        makeHistogram('winscores', winscores)
+        winner_code = field_pre.winner()
+        values = field_pre.winner().return_values()
+        msg = input("\nresult:"+json.dumps(values)+"\ninput 'q' for quit\n")
+        if msg == 'q':
+            fight = False
+
+    if fight:
+        # 开始对决
+        l = len(PARAMETERS)
+        field = fightsquare(N**l)
+        field.appendfighter(code0)
+        for x in range(N**l-1):
+            field.appendfighter(code0.copy_file())
+        field.beginfight()
+        winner_code = field.winner()
+
+        # 开始输出
+        os.chdir(os.path.dirname(__file__))
+        output_path = os.path.join(basepath, OUTPUT_FILE)
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(winner_code.return_values(), f, ensure_ascii=0)
+            # 输出最佳结果
+        if PRINT_SCORES:
+            output_path = os.path.join(basepath, SCORES_FILE)
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(field.scores, f, ensure_ascii=0)
+                # 输出对决结果
+        if ANALYZE_SCORES:
+            scores = field.scores
+            win_num = [x[0] for x in scores]
+            winscores = [x[1] for x in scores]
+            makeHistogram('win_num', win_num)
+            makeHistogram('winscores', winscores)
