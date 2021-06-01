@@ -15,10 +15,12 @@ PARAMETERS = {
 
 # 对战设置
 
-N = 15
+N = 10
 # 对战规模：N**len(parameters)
 K = 3
 # 每次对决进行2*k次
+PROGRAM_LINES = None
+# 并行进程数。。。改一种方式，用多个进程跑同样的main代码，然后再进一步考察,None代表取为电脑核数
 WINNER_IS_KING = True
 # 战胜场数为对比主要方式,为False的话会只比较胜利分
 
