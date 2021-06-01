@@ -6,8 +6,7 @@ import json
 import time
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.font_manager import FontProperties
-from multiprocessing import Process, Array, Pool, Lock
+from multiprocessing import Manager, Array, Pool, Lock
 os.chdir(os.path.dirname(__file__))
 
 
@@ -116,8 +115,9 @@ class fightsquare():
 
     def beginfight(self):
         assert len(self.fighters) == self.n
-        win_nums = Array('l', self.n)
-        winscores = Array('d', self.n)
+        mgr = Manager()
+        win_nums = mgr.list([0]*self.n)
+        winscores = mgr.list([0]*self.n)
         fight_num = 1
         pool = Pool()
         start_time = time.time()
