@@ -1,3 +1,7 @@
+from secrets_local import MAIL
+# 前置导入，不用管
+
+
 # 填写文件名
 # 请将文件放在pkudsa.stellar.codetrain文件夹里
 FILENAME = 'tqy_5.2.py'  # ！！！改文件名！！！
@@ -15,11 +19,11 @@ PARAMETERS = {
 
 # 对战设置
 
-N = 15
+N = 5
 # 对战规模：N**len(parameters)
-K = 3
+K = 2
 # 每次对决进行2*k次
-PROCESS_LIMITS = None
+PROCESS_LIMITS = 4
 # 并行进程数。。。改一种方式，用多个进程跑同样的main代码，然后再进一步考察,None代表取为电脑核数
 # 若为1 则返回方式与原来相同
 WINNER_IS_KING = True
@@ -28,17 +32,38 @@ WINNER_IS_KING = True
 
 # 输出设置
 
-PRINT_EVERY_RESULTS = False
-# 输出每一个进程的结果
-PRINT_SCORES = False
-# 输出分数
+SAVE_EVERY_RESULTS = True
+# 保存每一个进程的结果
+SAVE_SCORES = False
+# 保存每一个进程的分数
 SCORES_FILE = 'scores.json'
-# 输出分数文件
+# 保存每一个进程的分数文件
 
 
 # 分析设置
 
 ANALYZE_SCORES = False
 # 分析结果，并给出分布图（每个线程的）
-PRE_ANALYZE = True
+SHOW_EVERY_ANALYZE = False
+# 展示每一个分析的结果
+SAVE_EVERY_ANALYZE = False
+
+
+# 预分析设置
+
+PRE_ANALYZE = False
 # 预分析：在给定区域内取15组值进行计算，给出分析结果(大约6分钟)
+PRE_ANALYZE_AUTO_SAVE = False
+# 预分析结果储存
+PRE_ANALYZE_AUTO_SHOW = False
+# 预分析结果展示
+
+
+# 服务器设置
+
+SERVER_MOD = True
+# 是否用服务器跑
+SEND_MAIL = False
+# 运算结束发送邮件
+TO_MAILS = ['zqi.wong@gmail.com', 'zqi_wong@163.com']
+# 接收者

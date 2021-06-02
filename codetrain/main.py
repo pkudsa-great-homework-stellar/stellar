@@ -4,9 +4,8 @@ import random
 import ast
 import json
 import time
-import numpy as np
 import matplotlib.pyplot as plt
-from multiprocessing import Pool, Manager
+from multiprocessing import Process, Pool, Manager
 os.chdir(os.path.dirname(__file__))
 
 
@@ -20,10 +19,18 @@ if '初始配置':
     from paras import FILENAME, CONTRAST_WITH_SELF, CONTRAST_FILE, OUTPUT_FILE
     from paras import PARAMETERS
     from paras import N, K, WINNER_IS_KING, PROCESS_LIMITS
-    from paras import PRINT_SCORES, SCORES_FILE, PRINT_EVERY_RESULTS
-    from paras import ANALYZE_SCORES, PRE_ANALYZE
+    from paras import SAVE_SCORES, SCORES_FILE, SAVE_EVERY_RESULTS
+    from paras import ANALYZE_SCORES, SHOW_EVERY_ANALYZE, SAVE_EVERY_ANALYZE
+    from paras import PRE_ANALYZE, PRE_ANALYZE_AUTO_SAVE, PRE_ANALYZE_AUTO_SHOW
+    from paras import SERVER_MOD, SEND_MAIL, TO_MAILS
     basepath = os.path.dirname(__file__)
     path = os.path.join(basepath, FILENAME)
+    name = os.path.splitext(FILENAME)[0]
+    output_basepath = os.path.join(basepath, name)
+    try:
+        os.mkdir(output_basepath)
+    except FileExistsError:
+        pass
     # 预分析参量：
     PRE_ANALYZE_N = 15
 
@@ -104,7 +111,7 @@ class code():
 
 class fightsquare():
     def __init__(self, n: int, processname: str) -> None:
-        self.fighters = []
+        self.fighters = []  # list of class(code)
         self.n = n
         self.max_index = None
         self.__scores = None
@@ -131,10 +138,12 @@ class fightsquare():
                 time_used = now_time-start_time
                 time_still_needed = (time_used / fight_num) * \
                     (all_fight_num-fight_num)
-                msg = f"===================PART {fight_num} processname:{self.processname}====================\n"
-                msg += f'\tfights finished:{fight_num}/{all_fight_num}\tpid:{os.getpid()}\n'
-                msg += f"\t    time used:{time_used:.3f}s\ttime still needed:{time_still_needed:.3f}s"
-                print(msg)
+                print(
+                    f"===================PART {fight_num} processname:{self.processname}====================")
+                print(
+                    f'\tfights finished:{fight_num}/{all_fight_num}\tpid:{os.getpid()}')
+                print(
+                    f"\t    time used:{time_used:.3f}s\ttime still needed:{time_still_needed:.3f}s")
                 fight_num += 1
         max_value = scores[0]
         max_index = 0
@@ -159,17 +168,46 @@ class fightsquare():
         assert isinstance(self.__scores, list)
         return self.__scores
 
+    @property
+    def values(self) -> list:
+        assert isinstance(self.__scores, list)
+        assert self.max_index is not None
+        return [x.return_values() for x in self.fighters]
 
-def makeHistogram(name: str, data: list):
-    n, bins, patches = plt.hist(
-        x=data, bins='auto', color='#0504aa', alpha=0.7, rwidth=0.85)
-    plt.grid(axis='y', alpha=0.75)
-    plt.xlabel(name)
-    plt.ylabel('Frequency')
-    plt.title(name+"-Frequency Histogram")
-    maxfreq = n.max()
-    plt.ylim(ymax=np.ceil(maxfreq / 10) * 10 if maxfreq % 10 else maxfreq + 10)
-    plt.show()
+    @property
+    def distances(self) -> list:
+        assert isinstance(self.__scores, list)
+        assert self.max_index is not None
+        values = self.values
+        max_index = self.max_index
+        dict1 = values[max_index]
+
+        def distance(dict2: dict):
+            sum = 0
+            for x in dict1:
+                sum += (dict1[x]-dict2[x])**2
+            return sum**0.5
+        return [distance(x) for x in values]
+
+
+def makeScatterPlot(name: str, data: list, distances: list, processname: str, save: bool, show: bool):
+    if save or show:
+        plt.grid(alpha=0.75)
+        plt.xlabel('Distance')
+        plt.ylabel(name)
+        plt.title(name+"-Distance Scatter Plot\nfrom processname"+processname)
+        maxvalue = max(data)
+        minvalue = min(data)
+        maxdistance = max(distances)
+        plt.xlim(xmin=-0.5, xmax=maxdistance*1.1)
+        plt.ylim(ymin=minvalue*1.1, ymax=maxvalue*1.1)
+        plt.scatter(distances, data, c='#8A2BE2', alpha=0.7, marker='*')
+        if save:
+            output_path = os.path.join(
+                output_basepath, name+"-Distance_Scatter_Plot_"+processname+'.png')
+            plt.savefig(output_path, dpi=300)
+        if show:
+            plt.show()
 
 
 def core(results, lock, processname: str):
@@ -187,10 +225,10 @@ def core(results, lock, processname: str):
 
     # 开始输出
     os.chdir(os.path.dirname(__file__))
-    output_path = os.path.join(
-        basepath, OUTPUT_FILE+f'_processname{processname}')
-    output = winner_code.return_values()
-    if PRINT_EVERY_RESULTS:
+    if SAVE_EVERY_RESULTS:
+        output_path = os.path.join(
+            output_basepath, OUTPUT_FILE+f'_processname{processname}')
+        output = winner_code.return_values().copy()
         output['time_used'] = time_used
         output['processname'] = processname
         with open(output_path, 'w', encoding='utf-8') as f:
@@ -199,22 +237,45 @@ def core(results, lock, processname: str):
     results.append(winner_code.return_values())
     lock.release()
     # 输出最佳结果
-    if PRINT_SCORES:
+    if SAVE_SCORES:
         output_path = os.path.join(
-            basepath, SCORES_FILE+f'_processname{processname}')
+            output_basepath, SCORES_FILE+f'_processname{processname}')
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(field.scores, f, ensure_ascii=0)
             # 输出对决结果
     if ANALYZE_SCORES:
+        print(
+            f"===================Processname:{processname}====================")
+        print("                          Analyzing...\n")
         scores = field.scores
         win_num = [x[0] for x in scores]
         winscores = [x[1] for x in scores]
-        makeHistogram(f'win_num from processname{processname}', win_num)
-        makeHistogram(
-            f'winscores from processname{processname}', winscores)
+        distances = field.distances
+        makeScatterPlot('win num', win_num, distances, processname,
+                        SAVE_EVERY_ANALYZE, SHOW_EVERY_ANALYZE)
+        makeScatterPlot('winscores', winscores, distances,
+                        processname, SAVE_EVERY_ANALYZE, SHOW_EVERY_ANALYZE)
 
 
 if __name__ == '__main__':
+    # 关于服务器模式
+    mgr = Manager()
+    if SERVER_MOD:
+        from log import print_log
+        log_lock = Manager().Lock()
+        log_stack = mgr.list()
+        log = Process(target=print_log, args=(
+            log_stack, basepath, name, log_lock))
+        print("Run child process 'log'")
+        log.start()
+
+        def info(*arg):
+            log_lock.acquire()
+            log_stack.append(*arg)
+            log_lock.release()
+
+        print = info
+
     code0 = code(FILENAME, PARAMETERS, path)
 
     # 预分析
@@ -229,8 +290,11 @@ if __name__ == '__main__':
         scores = field_pre.scores
         win_num = [x[0] for x in scores]
         winscores = [x[1] for x in scores]
-        makeHistogram('win_num', win_num)
-        makeHistogram('winscores', winscores)
+        distances = field_pre.distances
+        makeScatterPlot('win_num', win_num, distances,
+                        'PRE_ANALYZE', PRE_ANALYZE_AUTO_SAVE, PRE_ANALYZE_AUTO_SHOW)
+        makeScatterPlot('winscores', winscores, distances,
+                        'PRE_ANALYZE', PRE_ANALYZE_AUTO_SAVE, PRE_ANALYZE_AUTO_SHOW)
         winner_code = field_pre.winner()
         values = field_pre.winner().return_values()
         msg = input("\nresult:"+json.dumps(values)+"\ninput 'q' for quit\n")
@@ -242,7 +306,6 @@ if __name__ == '__main__':
         else:
             pool = Pool(PROCESS_LIMITS)
         n = pool._processes
-        mgr = Manager()
         results = mgr.list()
         lock = mgr.Lock()
         for i in range(n):
@@ -250,7 +313,7 @@ if __name__ == '__main__':
         pool.close()
         pool.join()
         print('\nAll processes done\n')
-        # print(list(results))
+        print(json.dumps(list(results)))
         if n != 1:
             # 终焉之战
             assert len(results) == n
@@ -267,6 +330,33 @@ if __name__ == '__main__':
 
         # 最终输出
         os.chdir(os.path.dirname(__file__))
-        output_path = os.path.join(basepath, OUTPUT_FILE)
+        output_path = os.path.join(output_basepath, OUTPUT_FILE)
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(output, f, ensure_ascii=0)
+        print("Output Done.")
+
+        if SEND_MAIL:
+            # 发邮件
+            from mail import zip_dir, sendmail
+            output_file = os.path.join(basepath, name+'.zip')
+            print("zipping file...")
+            os.chdir(basepath)
+            b = zip_dir(name, output_file)
+            assert b
+            print("zipping done.")
+            for tomail in TO_MAILS:
+                print('sending mail...')
+                b = sendmail(tomail, name, json.dumps(output), output_file)
+                assert b
+            os.remove(output_file)
+            print('Mailsending Done.')
+
+    if SERVER_MOD:
+        # 结束log进程
+        while True:
+            if log_stack:
+                break
+            time.sleep(0.5)
+        print("Killed child process 'log'.")
+        log.terminate()
+        log.join()
