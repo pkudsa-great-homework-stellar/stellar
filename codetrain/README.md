@@ -7,6 +7,7 @@
 不想写文档了。。。需要用请看源代码或者找wzq
 # 待改进
 * 完成与固定代码交战部分
+* 遗传变异算法？
 # 版本号
 ## version 0.5 2021.6.1 
 * set up project
@@ -22,3 +23,4 @@
 * 可以打印log，使用一个独立进程打印log
 * 评估方式改为散点图，胜利分-距离 和 胜利局数-距离
 * 邮件使用请填写secrets_local.py from secrets_template.py
+* 将多线程merge到主分支，删去branch dev_multiprocessing
