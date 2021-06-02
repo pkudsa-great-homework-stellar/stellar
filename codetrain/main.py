@@ -221,7 +221,7 @@ if __name__ == '__main__':
     fight = True
     if PRE_ANALYZE:
         print("\nNOW begins the PRE-ANALYZE:\n")
-        field_pre = fightsquare(PRE_ANALYZE_N)
+        field_pre = fightsquare(PRE_ANALYZE_N, 'PRE_ANALYZE')
         field_pre.appendfighter(code0)
         for x in range(PRE_ANALYZE_N-1):
             field_pre.appendfighter(code0.copy_file())
@@ -251,20 +251,22 @@ if __name__ == '__main__':
         pool.join()
         print('\nAll processes done\n')
         # print(list(results))
-
-        # 终焉之战
-        assert len(results) == n
-        print('========================FINAL FIGHT========================')
-        final = fightsquare(n, 'final')
-        for i in range(n):
-            x = code(FILENAME, PARAMETERS, path, randomchange=False)
-            x.parameters_values = results[i]
-            final.appendfighter(x)
-        final.beginfight()
-        winner_code = final.winner()
+        if n != 1:
+            # 终焉之战
+            assert len(results) == n
+            print('========================FINAL FIGHT========================')
+            final = fightsquare(n, 'final')
+            for i in range(n):
+                x = code(FILENAME, PARAMETERS, path, randomchange=False)
+                x.parameters_values = results[i]
+                final.appendfighter(x)
+            final.beginfight()
+            output = final.winner().return_values()
+        else:
+            output = results[0]
 
         # 最终输出
         os.chdir(os.path.dirname(__file__))
         output_path = os.path.join(basepath, OUTPUT_FILE)
         with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(winner_code.return_values(), f, ensure_ascii=0)
+            json.dump(output, f, ensure_ascii=0)
